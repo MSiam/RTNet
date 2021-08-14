@@ -74,6 +74,71 @@ class RTDataset(Dataset):
                     'fwflow': F.interpolate(fwflow, (self.size, int(self.size*1.75)), mode='bilinear', align_corners=True),
                     'bwflow': F.interpolate(bwflow, (self.size, int(self.size*1.75)), mode='bilinear', align_corners=True),}
 
+class ModifiedRTTestDataset(Dataset):
+    def __init__(self, path, T, H, W):
+        self.fwflow_list = []
+        self.bwflow_list = []
+        self.img_list = []
+        self.label_list = []
+        self.T = T
+        self.H, self.W = H, W
+
+        seqfile = os.path.join(path, 'ImageSets/480p/val.txt')
+        with open(seqfile, 'r') as f:
+            for line in f:
+                fname = line.split(' ')[0][1:]
+                fname = os.path.join(path, fname)
+                self.img_list.append(fname)
+                self.label_list.append(fname.replace('JPEGImages', 'Annotations').replace('jpg', 'png'))
+                fwflow_path = fname.replace('JPEGImages/480p', 'FlowImages_gap1/').replace('jpg', 'png')
+                bwflow_path = fname.replace('JPEGImages/480p', 'FlowImages_gap-1/').replace('jpg', 'png')
+                if not os.path.exists(fwflow_path):
+                    self.fwflow_list.append(bwflow_path)
+                else:
+                    self.fwflow_list.append(fwflow_path)
+
+                if not os.path.exists(bwflow_path):
+                    self.bwflow_list.append(fwflow_path)
+                else:
+                    self.bwflow_list.append(bwflow_path)
+        self.dataset_len = len(self.img_list)
+    def __len__(self):
+        return len(self.img_list)
+
+    def __getitem__(self, item):
+        frame = [item]
+        scope = 10
+        other = np.random.randint(-scope, scope)
+        while item + other >= self.dataset_len or item + other < 0 or other == 0:
+            other = np.random.randint(-scope, scope)
+        name1 = self.img_list[item]
+        name2 = self.img_list[item + other]
+        #while name1.split('/')[-1].split("_")[0] != name2.split('/')[-1].split("_")[0]:
+        while name1.split('/')[-2] != name2.split('/')[-2]:
+            other = np.random.randint(-scope, scope)
+            while item + other >= self.dataset_len or item + other < 0 or other == 0:
+                other = np.random.randint(-scope, scope)
+            name2 = self.img_list[item + other]
+        frame.append(item + other)
+        videos, labels, fwflows, bwflows = [], [], [], []
+        for i in frame:
+            video = imread(self.img_list[i])
+            fw = imread(self.fwflow_list[i])
+            bw = imread(self.bwflow_list[i])
+            label = imread(self.label_list[i])
+            if len(label.shape) == 3:
+                label = label[:, :, 0]
+            label = label[:, :, np.newaxis]
+            videos.append(img_normalize(video.astype(np.float32) / 255.))
+            labels.append(label.astype(np.float32) / 255.)
+            fwflows.append(img_normalize(fw.astype(np.float32) / 255.))
+            bwflows.append(img_normalize(bw.astype(np.float32) / 255.))
+            H, W = labels[0].shape[0], labels[0].shape[1]
+        return {'video': F.interpolate(torch.from_numpy(np.stack(videos, 0)).permute(0, 3, 1, 2), (self.H, self.W), mode='bilinear', align_corners=True),
+                'fwflow': F.interpolate(torch.from_numpy(np.stack(fwflows, 0)).permute(0, 3, 1, 2), (self.H, self.W), mode='bilinear', align_corners=True),
+                'bwflow': F.interpolate(torch.from_numpy(np.stack(bwflows, 0)).permute(0, 3, 1, 2), (self.H, self.W), mode='bilinear', align_corners=True),
+                "label_org":torch.from_numpy(np.stack([labels[0]], 0)).permute(0, 3, 1, 2),
+                "H":H, "W":W, 'name': self.img_list[item].split("/")[-2:]}
 
 class RTTestDataset(Dataset):
     def __init__(self, pathes, T, H, W):
