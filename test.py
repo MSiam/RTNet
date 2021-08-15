@@ -2,7 +2,7 @@ import os
 import torch
 from torch.utils.data import DataLoader
 import numpy as np
-from dataset import ModifiedRTTestDataset
+from dataset import ModifiedRTTestDataset, DavisTransform
 from model_R34 import Interactive
 import torch.nn.functional as F
 from imageio import imwrite
@@ -19,8 +19,15 @@ if __name__ == '__main__':
     setup_seed(1024)
     model_dir = "./saved_model/"
     batch_size_val = 1
-    dataset = "/local/riemann/home/msiam/DAVIS/"
-    DAVIS_dataset = ModifiedRTTestDataset(dataset, 2, 384, int(384 * 1.75))
+#    dataset = "/local/riemann/home/msiam/DAVIS/"
+#    transform = DavisTransform(384, int(384 * 1.75))
+#    DAVIS_dataset = ModifiedRTTestDataset(dataset, 2, file_list='ImageSets/480p/val.txt',
+#                                          img_prefix="JPEGImages/480p/", transform_fn=transform)
+    dataset = "/local/riemann/home/msiam/MoCA_filtered2/"
+    transform = DavisTransform(384, int(384 * 1.75))
+    DAVIS_dataset = ModifiedRTTestDataset(dataset, 2, file_list='val.txt',
+                                          img_prefix="JPEGImages/", transform_fn=transform)
+
     DAVIS_dataloader = DataLoader(DAVIS_dataset, batch_size=1, shuffle=False, num_workers=0)
     net = Interactive().cuda()
     model_name = 'model_R34.pth'

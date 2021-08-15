@@ -75,23 +75,23 @@ class RTDataset(Dataset):
                     'bwflow': F.interpolate(bwflow, (self.size, int(self.size*1.75)), mode='bilinear', align_corners=True),}
 
 class ModifiedRTTestDataset(Dataset):
-    def __init__(self, path, T, H, W):
+    def __init__(self, path, T, file_list=None, img_prefix='', transform_fn=None):
         self.fwflow_list = []
         self.bwflow_list = []
         self.img_list = []
         self.label_list = []
         self.T = T
-        self.H, self.W = H, W
+        self.transform = transform_fn
 
-        seqfile = os.path.join(path, 'ImageSets/480p/val.txt')
+        seqfile = os.path.join(path, file_list)
         with open(seqfile, 'r') as f:
             for line in f:
                 fname = line.split(' ')[0][1:]
                 fname = os.path.join(path, fname)
                 self.img_list.append(fname)
                 self.label_list.append(fname.replace('JPEGImages', 'Annotations').replace('jpg', 'png'))
-                fwflow_path = fname.replace('JPEGImages/480p', 'FlowImages_gap1/').replace('jpg', 'png')
-                bwflow_path = fname.replace('JPEGImages/480p', 'FlowImages_gap-1/').replace('jpg', 'png')
+                fwflow_path = fname.replace(img_prefix, 'FlowImages_gap1/').replace('jpg', 'png')
+                bwflow_path = fname.replace(img_prefix, 'FlowImages_gap-1/').replace('jpg', 'png')
                 if not os.path.exists(fwflow_path):
                     self.fwflow_list.append(bwflow_path)
                 else:
@@ -134,11 +134,19 @@ class ModifiedRTTestDataset(Dataset):
             fwflows.append(img_normalize(fw.astype(np.float32) / 255.))
             bwflows.append(img_normalize(bw.astype(np.float32) / 255.))
             H, W = labels[0].shape[0], labels[0].shape[1]
-        return {'video': F.interpolate(torch.from_numpy(np.stack(videos, 0)).permute(0, 3, 1, 2), (self.H, self.W), mode='bilinear', align_corners=True),
-                'fwflow': F.interpolate(torch.from_numpy(np.stack(fwflows, 0)).permute(0, 3, 1, 2), (self.H, self.W), mode='bilinear', align_corners=True),
-                'bwflow': F.interpolate(torch.from_numpy(np.stack(bwflows, 0)).permute(0, 3, 1, 2), (self.H, self.W), mode='bilinear', align_corners=True),
+        return {'video': self.transform(torch.from_numpy(np.stack(videos, 0)).permute(0, 3, 1, 2)),
+                'fwflow': self.transform(torch.from_numpy(np.stack(fwflows, 0)).permute(0, 3, 1, 2)),
+                'bwflow': self.transform(torch.from_numpy(np.stack(bwflows, 0)).permute(0, 3, 1, 2)),
                 "label_org":torch.from_numpy(np.stack([labels[0]], 0)).permute(0, 3, 1, 2),
                 "H":H, "W":W, 'name': self.img_list[item].split("/")[-2:]}
+
+class DavisTransform(object):
+    def __init__(self, H, W):
+        self.H = H
+        self.W = W
+
+    def __call__(self, tensor):
+        return F.interpolate(tensor, (self.H, self.W), mode='bilinear', align_corners=True)
 
 class RTTestDataset(Dataset):
     def __init__(self, pathes, T, H, W):
