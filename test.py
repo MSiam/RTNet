@@ -3,7 +3,7 @@ import torch
 from torch.utils.data import DataLoader
 import numpy as np
 from dataset import ModifiedRTTestDataset, DavisTransform
-from model_R34 import Interactive
+from model_RX50 import Interactive
 import torch.nn.functional as F
 from imageio import imwrite
 import random
@@ -30,7 +30,7 @@ if __name__ == '__main__':
 
     DAVIS_dataloader = DataLoader(DAVIS_dataset, batch_size=1, shuffle=False, num_workers=0)
     net = Interactive().cuda()
-    model_name = 'model_R34.pth'
+    model_name = 'model_RX50.pth'
     ckpt = torch.load(model_dir + model_name)['state_dict']
     model_dict = net.state_dict()
     pretrained_dict = {k[7:]: v for k, v in ckpt.items() if k[7:] in model_dict}
